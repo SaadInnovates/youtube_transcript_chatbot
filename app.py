@@ -13,15 +13,14 @@ from langchain_core.output_parsers import StrOutputParser
 import re
 import requests
 
-import requests
 import streamlit as st
 
-from youtube_transcript_api import YouTubeTranscriptApi, TranscriptsDisabled
+from youtube_transcript_api import YouTubeTranscriptApi
+from youtube_transcript_api._errors import TranscriptsDisabled, NoTranscriptFound
 
 def fetch_transcript_api(video_id, api_key=None):
     """
     Fetch YouTube transcript using youtube_transcript_api.
-    Works without external API; api_key param is ignored.
     """
     try:
         transcript_list = YouTubeTranscriptApi.get_transcript(video_id, languages=['en'])
@@ -29,9 +28,13 @@ def fetch_transcript_api(video_id, api_key=None):
     except TranscriptsDisabled:
         st.error("Transcripts are disabled for this video.")
         return None
+    except NoTranscriptFound:
+        st.error("No transcript found for this video.")
+        return None
     except Exception as e:
         st.error(f"Error fetching transcript: {str(e)}")
         return None
+        
 # ---------------- PAGE CONFIG ----------------
 st.set_page_config(
     page_title="🎥 YouTube AI Chatbot",
