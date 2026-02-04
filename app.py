@@ -18,8 +18,7 @@ import streamlit as st
 from youtube_transcript_api import YouTubeTranscriptApi
 from youtube_transcript_api._errors import TranscriptsDisabled, NoTranscriptFound
 
-
- def fetch_transcript_api(video_id, api_key=None):
+def fetch_transcript_api(video_id, api_key=None):
     """
     Fetch transcript from YouTube video using current youtube-transcript-api
     """
