@@ -11,6 +11,27 @@ from langchain_core.prompts import PromptTemplate
 from langchain_core.runnables import RunnablePassthrough, RunnableLambda, RunnableParallel
 from langchain_core.output_parsers import StrOutputParser
 import re
+import requests
+
+def fetch_transcript_api(video_id, api_key):
+    url = "https://api.supadata.ai/youtube/transcript"
+    headers = {
+        "x-api-key": api_key,
+        "Content-Type": "application/json"
+    }
+    payload = {
+        "video_id": video_id,
+        "lang": "en"
+    }
+
+    response = requests.post(url, headers=headers, json=payload)
+
+    if response.status_code != 200:
+        raise Exception("Transcript API failed")
+
+    data = response.json()
+    return " ".join([item["text"] for item in data["transcript"]])
+
 
 # ---------------- PAGE CONFIG ----------------
 st.set_page_config(
@@ -139,11 +160,7 @@ def extract_video_id(url_or_id):
 
 def load_and_index(video_id, k=5):
     try:
-        api = YouTubeTranscriptApi()
-        transcript_list = api.list(video_id)
-        transcript = transcript_list.find_transcript(['en'])
-        fetched = transcript.fetch()
-        text = " ".join([snippet.text for snippet in fetched])
+        text = fetch_transcript_api(video_id, st.secrets["SUPADATA_KEY"])
 
         splitter = RecursiveCharacterTextSplitter(chunk_size=1000, chunk_overlap=200)
         chunks = splitter.create_documents([text])
