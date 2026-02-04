@@ -20,19 +20,42 @@ from youtube_transcript_api._errors import TranscriptsDisabled, NoTranscriptFoun
 
 def fetch_transcript_api(video_id, api_key=None):
     """
-    Works with youtube-transcript-api<=1.2.4 (Python 3.13 in Streamlit Cloud)
+    Robust transcript fetcher with multiple fallback methods
     """
+    methods_to_try = [
+        # Method 1: Direct fetch with languages
+        lambda: YouTubeTranscriptApi.get_transcript(video_id, languages=['en']),
+        # Method 2: Direct fetch without languages
+        lambda: YouTubeTranscriptApi.get_transcript(video_id),
+        # Method 3: Try through list_transcripts
+        lambda: fetch_via_list_transcripts(video_id)
+    ]
+    
+    for method in methods_to_try:
+        try:
+            transcript = method()
+            if transcript:
+                if isinstance(transcript, list):
+                    return " ".join([t['text'] for t in transcript])
+                else:
+                    return transcript
+        except:
+            continue
+    
+    return None
+
+def fetch_via_list_transcripts(video_id):
+    """Alternative method using list_transcripts"""
+    transcript_list = YouTubeTranscriptApi.list_transcripts(video_id)
+    
+    # Try to find a transcript
     try:
-        # old method
-        transcript_dict = YouTubeTranscriptApi.get_transcripts([video_id])
-        # transcript_dict is a dict: {video_id: [segments]}
-        transcript_list = transcript_dict[video_id]
-        return " ".join([t['text'] for t in transcript_list])
-    except (TranscriptsDisabled, NoTranscriptFound):
-        return None
-    except Exception as e:
-        st.error(f"Error fetching transcript: {str(e)}")
-        return None
+        transcript = transcript_list.find_transcript(['en'])
+    except:
+        # Get first available transcript
+        transcript = list(transcript_list)[0]
+    
+    return transcript.fetch()
 
 # ---------------- PAGE CONFIG ----------------
 st.set_page_config(
