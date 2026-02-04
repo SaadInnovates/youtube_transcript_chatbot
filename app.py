@@ -17,7 +17,7 @@ import requests
 import streamlit as st
 
 def fetch_transcript_api(video_id, api_key):
-    url = "https://api.supadata.ai/youtube/transcript"
+    url = "https://api.supadata.ai/v1/youtube/transcript"
 
     headers = {
         "x-api-key": api_key,
