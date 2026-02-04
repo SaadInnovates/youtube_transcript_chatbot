@@ -16,36 +16,22 @@ import requests
 import requests
 import streamlit as st
 
-def fetch_transcript_api(video_id, api_key):
-    url = "https://api.supadata.ai/v1/youtube/transcript"
+from youtube_transcript_api import YouTubeTranscriptApi, TranscriptsDisabled
 
-    headers = {
-        "x-api-key": api_key,
-        "Content-Type": "application/json"
-    }
-
-    payload = {
-        "video_id": video_id,
-        "lang": "en"
-    }
-
-    response = requests.post(url, headers=headers, json=payload)
-
-    # DEBUG OUTPUT
-    if response.status_code != 200:
-        st.error(f"Transcript API Error {response.status_code}")
-        st.code(response.text)
-        raise Exception("Transcript API failed")
-
-    data = response.json()
-
-    if "transcript" not in data:
-        st.error("Transcript key missing in API response")
-        st.code(data)
-        raise Exception("Bad API response")
-
-    return " ".join([item["text"] for item in data["transcript"]])
-
+def fetch_transcript_api(video_id, api_key=None):
+    """
+    Fetch YouTube transcript using youtube_transcript_api.
+    Works without external API; api_key param is ignored.
+    """
+    try:
+        transcript_list = YouTubeTranscriptApi.get_transcript(video_id, languages=['en'])
+        return " ".join([t["text"] for t in transcript_list])
+    except TranscriptsDisabled:
+        st.error("Transcripts are disabled for this video.")
+        return None
+    except Exception as e:
+        st.error(f"Error fetching transcript: {str(e)}")
+        return None
 # ---------------- PAGE CONFIG ----------------
 st.set_page_config(
     page_title="🎥 YouTube AI Chatbot",
@@ -148,13 +134,13 @@ with st.sidebar:
     st.markdown("---")
     st.markdown("### How it works")
     st.markdown(
-        """
-        1. Fetches YouTube transcript
-        2. Splits into chunks
-        3. Creates embeddings
-        4. Stores in FAISS
-        5. Answers using Hugging Face LLM
-        """
+    """
+    1. Fetches YouTube transcript (via youtube_transcript_api)
+    2. Splits into chunks
+    3. Creates embeddings
+    4. Stores in FAISS
+    5. Answers using Hugging Face LLM
+    """
     )
 
 # ---------------- SESSION STATE ----------------
@@ -172,9 +158,11 @@ def extract_video_id(url_or_id):
 
 
 def load_and_index(video_id, k=5):
-    try:
-        text = fetch_transcript_api(video_id, st.secrets["SUPADATA_KEY"])
+    text = fetch_transcript_api(video_id)
+    if not text:
+        return None, "No transcript found for this video."
 
+    try:
         splitter = RecursiveCharacterTextSplitter(chunk_size=1000, chunk_overlap=200)
         chunks = splitter.create_documents([text])
 
@@ -182,11 +170,9 @@ def load_and_index(video_id, k=5):
         vector_store = FAISS.from_documents(chunks, embeddings)
 
         return vector_store, f"Indexed {len(chunks)} chunks successfully."
-
-    except TranscriptsDisabled:
-        return None, "No captions available for this video."
     except Exception as e:
-        return None, f"Error: {str(e)}"
+        return None, f"Error creating vector store: {str(e)}"
+
 
 
 def build_chain(vector_store, hf_token, model_repo, temperature, k_docs):
