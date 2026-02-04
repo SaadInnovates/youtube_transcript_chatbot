@@ -18,44 +18,32 @@ import streamlit as st
 from youtube_transcript_api import YouTubeTranscriptApi
 from youtube_transcript_api._errors import TranscriptsDisabled, NoTranscriptFound
 
-def fetch_transcript_api(video_id, api_key=None):
-    """
-    Robust transcript fetcher with multiple fallback methods
-    """
-    methods_to_try = [
-        # Method 1: Direct fetch with languages
-        lambda: YouTubeTranscriptApi.get_transcript(video_id, languages=['en']),
-        # Method 2: Direct fetch without languages
-        lambda: YouTubeTranscriptApi.get_transcript(video_id),
-        # Method 3: Try through list_transcripts
-        lambda: fetch_via_list_transcripts(video_id)
-    ]
-    
-    for method in methods_to_try:
-        try:
-            transcript = method()
-            if transcript:
-                if isinstance(transcript, list):
-                    return " ".join([t['text'] for t in transcript])
-                else:
-                    return transcript
-        except:
-            continue
-    
-    return None
 
-def fetch_via_list_transcripts(video_id):
-    """Alternative method using list_transcripts"""
-    transcript_list = YouTubeTranscriptApi.list_transcripts(video_id)
-    
-    # Try to find a transcript
+ def fetch_transcript_api(video_id, api_key=None):
+    """
+    Fetch transcript from YouTube video using current youtube-transcript-api
+    """
     try:
-        transcript = transcript_list.find_transcript(['en'])
-    except:
-        # Get first available transcript
-        transcript = list(transcript_list)[0]
-    
-    return transcript.fetch()
+        # Method 1: Direct fetch with English preference
+        try:
+            transcript = YouTubeTranscriptApi.get_transcript(video_id, languages=['en'])
+        except:
+            # Method 2: Fetch any available transcript
+            transcript = YouTubeTranscriptApi.get_transcript(video_id)
+        
+        # Combine text segments
+        full_text = " ".join([t['text'] for t in transcript])
+        return full_text
+        
+    except TranscriptsDisabled:
+        st.warning("Transcripts are disabled for this video.")
+        return None
+    except NoTranscriptFound:
+        st.warning("No transcript found for this video.")
+        return None
+    except Exception as e:
+        st.error(f"Error: {str(e)}")
+        return None
 
 # ---------------- PAGE CONFIG ----------------
 st.set_page_config(
