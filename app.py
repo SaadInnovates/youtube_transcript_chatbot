@@ -15,6 +15,7 @@ import re
 from youtube_transcript_api import YouTubeTranscriptApi
 from youtube_transcript_api._errors import TranscriptsDisabled, NoTranscriptFound
 
+
 def fetch_transcript_api(video_id):
     """
     Fetch transcript using youtube-transcript-api <=1.2.4
@@ -44,6 +45,7 @@ def fetch_transcript_api(video_id):
     except Exception as e:
         st.error(f"Error fetching transcript: {e}")
         return None
+
 
 # ---------------- PAGE CONFIG ----------------
 st.set_page_config(
@@ -82,17 +84,6 @@ with st.sidebar:
     model_repo = st.text_input("HF Model Repo", value="HuggingFaceH4/zephyr-7b-beta")
     temperature = st.slider("Temperature", 0.0, 1.0, 0.2)
     k_docs = st.slider("Top K Chunks", 1, 10, 5)
-    st.markdown("---")
-    st.markdown("### How it works")
-    st.markdown(
-        """
-        1. Fetches YouTube transcript
-        2. Splits into chunks
-        3. Creates embeddings
-        4. Stores in FAISS
-        5. Answers using Hugging Face LLM
-        """
-    )
 
 # ---------------- SESSION STATE ----------------
 if "vector_store" not in st.session_state:
@@ -105,6 +96,7 @@ def extract_video_id(url_or_id):
     pattern = r"(?:v=|youtu.be/)([a-zA-Z0-9_-]{11})"
     match = re.search(pattern, url_or_id)
     return match.group(1) if match else url_or_id
+
 
 def load_and_index(video_id, k=5):
     text = fetch_transcript_api(video_id)
@@ -124,6 +116,7 @@ def load_and_index(video_id, k=5):
         return vector_store, f"Indexed {len(chunks)} chunks successfully."
     except Exception as e:
         return None, f"Error creating vector store: {str(e)}"
+
 
 def build_chain(vector_store, hf_token, model_repo, temperature, k_docs):
     retriever = vector_store.as_retriever(search_type="similarity", search_kwargs={"k": k_docs})
@@ -189,6 +182,6 @@ if st.button("Ask") and question:
             answer = chain.invoke(question)
         st.session_state.chat_history.append(("user", question))
         st.session_state.chat_history.append(("bot", answer))
-        st.experimental_rerun()
+        # Removed st.experimental_rerun() for Streamlit 1.54 compatibility
 
 st.markdown("<div class='footer'>Built by M.Saad </div>", unsafe_allow_html=True)
