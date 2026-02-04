@@ -3,7 +3,9 @@
 # Author: Muhammad Saad Zubair
 
 import streamlit as st
-from youtube_transcript_api import YouTubeTranscriptApi, TranscriptsDisabled
+from youtube_transcript_api import YouTubeTranscriptApi
+from youtube_transcript_api._errors import TranscriptsDisabled, NoTranscriptFound
+
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 from langchain_huggingface import HuggingFaceEmbeddings, HuggingFaceEndpoint, ChatHuggingFace
 from langchain_community.vectorstores import FAISS
@@ -15,21 +17,15 @@ import requests
 
 import streamlit as st
 
-from youtube_transcript_api import YouTubeTranscriptApi
-from youtube_transcript_api._errors import TranscriptsDisabled, NoTranscriptFound
-
 def fetch_transcript_api(video_id, api_key=None):
     """
-    Fetch YouTube transcript using youtube_transcript_api.
+    Fetch YouTube transcript compatible with youtube-transcript-api<=1.2.4.
+    api_key is ignored.
     """
     try:
-        transcript_list = YouTubeTranscriptApi.get_transcript(video_id, languages=['en'])
+        transcript_list = YouTubeTranscriptApi.get_transcript(video_id)
         return " ".join([t["text"] for t in transcript_list])
-    except TranscriptsDisabled:
-        st.error("Transcripts are disabled for this video.")
-        return None
-    except NoTranscriptFound:
-        st.error("No transcript found for this video.")
+    except (TranscriptsDisabled, NoTranscriptFound):
         return None
     except Exception as e:
         st.error(f"Error fetching transcript: {str(e)}")
@@ -162,8 +158,13 @@ def extract_video_id(url_or_id):
 
 def load_and_index(video_id, k=5):
     text = fetch_transcript_api(video_id)
+
+    # Fallback: if transcript fetch fails, ask user to paste it
     if not text:
-        return None, "No transcript found for this video."
+        st.info("Unable to fetch transcript automatically. Please paste transcript manually:")
+        text = st.text_area("Paste transcript here")
+        if not text:
+            return None, "No transcript provided."
 
     try:
         splitter = RecursiveCharacterTextSplitter(chunk_size=1000, chunk_overlap=200)
@@ -175,6 +176,7 @@ def load_and_index(video_id, k=5):
         return vector_store, f"Indexed {len(chunks)} chunks successfully."
     except Exception as e:
         return None, f"Error creating vector store: {str(e)}"
+
 
 
 
