@@ -20,29 +20,41 @@ from youtube_transcript_api._errors import TranscriptsDisabled, NoTranscriptFoun
 
 def fetch_transcript_api(video_id, api_key=None):
     """
-    Fetch transcript from YouTube video using current youtube-transcript-api
+    Fetch transcript from YouTube using YouTube Data API v3
     """
+    if not api_key:
+        return None  # fallback to manual input
+
     try:
-        # Method 1: Direct fetch with English preference
-        try:
-            transcript = YouTubeTranscriptApi.get_transcript(video_id, languages=['en'])
-        except:
-            # Method 2: Fetch any available transcript
-            transcript = YouTubeTranscriptApi.get_transcript(video_id)
-        
-        # Combine text segments
-        full_text = " ".join([t['text'] for t in transcript])
-        return full_text
-        
-    except TranscriptsDisabled:
-        st.warning("Transcripts are disabled for this video.")
+        # Get list of captions for video
+        url = f"https://www.googleapis.com/youtube/v3/captions?part=snippet&videoId={video_id}&key={api_key}"
+        r = requests.get(url)
+        if r.status_code != 200:
+            return None
+        data = r.json()
+        if "items" not in data or len(data["items"]) == 0:
+            return None
+
+        # Find English caption
+        caption_id = None
+        for item in data["items"]:
+            if item["snippet"]["language"] == "en":
+                caption_id = item["id"]
+                break
+        if not caption_id:
+            return None
+
+        # Download caption text in SRT format
+        caption_url = f"https://www.googleapis.com/youtube/v3/captions/{caption_id}?tfmt=srt&key={api_key}"
+        r2 = requests.get(caption_url)
+        if r2.status_code != 200:
+            return None
+
+        return r2.text
+
+    except Exception:
         return None
-    except NoTranscriptFound:
-        st.warning("No transcript found for this video.")
-        return None
-    except Exception as e:
-        st.error(f"Error: {str(e)}")
-        return None
+
 
 # ---------------- PAGE CONFIG ----------------
 st.set_page_config(
@@ -154,6 +166,7 @@ with st.sidebar:
     5. Answers using Hugging Face LLM
     """
     )
+    yt_api_key = st.text_input("YouTube Data API Key", type="password")
 
 # ---------------- SESSION STATE ----------------
 if "vector_store" not in st.session_state:
@@ -170,9 +183,9 @@ def extract_video_id(url_or_id):
 
 
 def load_and_index(video_id, k=5):
-    text = fetch_transcript_api(video_id)
+    text = fetch_transcript_api(video_id, yt_api_key)
 
-    # Fallback: if transcript fetch fails, ask user to paste it
+    # Fallback if transcript fetch fails
     if not text:
         st.info("Unable to fetch transcript automatically. Please paste transcript manually:")
         text = st.text_area("Paste transcript here")
@@ -182,13 +195,12 @@ def load_and_index(video_id, k=5):
     try:
         splitter = RecursiveCharacterTextSplitter(chunk_size=1000, chunk_overlap=200)
         chunks = splitter.create_documents([text])
-
         embeddings = HuggingFaceEmbeddings(model_name="sentence-transformers/all-MiniLM-L6-v2")
         vector_store = FAISS.from_documents(chunks, embeddings)
-
         return vector_store, f"Indexed {len(chunks)} chunks successfully."
     except Exception as e:
         return None, f"Error creating vector store: {str(e)}"
+
 
 
 
