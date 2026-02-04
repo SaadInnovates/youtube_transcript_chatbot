@@ -13,42 +13,40 @@ import re
 import requests
 
 # ---------------- TRANSCRIPT FETCH ----------------
-def fetch_transcript_api(video_id, api_key=None):
-    """
-    Fetch transcript from YouTube using YouTube Data API v3
-    """
-    if not api_key:
-        return None  # fallback to manual input
+from youtube_transcript_api import YouTubeTranscriptApi
+from youtube_transcript_api._errors import TranscriptsDisabled, NoTranscriptFound
+import streamlit as st
 
+def fetch_transcript_api(video_id):
+    """
+    Fetch transcript using older youtube-transcript-api version (<=1.2.0)
+    """
     try:
-        # Get list of captions for video
-        url = f"https://www.googleapis.com/youtube/v3/captions?part=snippet&videoId={video_id}&key={api_key}"
-        r = requests.get(url)
-        if r.status_code != 200:
-            return None
-        data = r.json()
-        if "items" not in data or len(data["items"]) == 0:
-            return None
+        api = YouTubeTranscriptApi()
 
-        # Find English caption
-        caption_id = None
-        for item in data["items"]:
-            if item["snippet"]["language"] == "en":
-                caption_id = item["id"]
-                break
-        if not caption_id:
-            return None
+        # List all available transcript metadata
+        transcript_list = api.list(video_id)
 
-        # Download caption text in SRT format
-        caption_url = f"https://www.googleapis.com/youtube/v3/captions/{caption_id}?tfmt=srt&key={api_key}"
-        r2 = requests.get(caption_url)
-        if r2.status_code != 200:
-            return None
+        # Find English transcript (prefers manual over auto if available)
+        transcript = transcript_list.find_transcript(['en'])
 
-        return r2.text
+        # Fetch actual transcript
+        fetched = transcript.fetch()
 
-    except Exception:
+        # Convert to plain text
+        text = " ".join([snippet.text for snippet in fetched])
+        return text
+
+    except TranscriptsDisabled:
+        st.warning("Transcripts are disabled for this video.")
         return None
+    except NoTranscriptFound:
+        st.warning("No transcript found for this video.")
+        return None
+    except Exception as e:
+        st.error(f"Error fetching transcript: {e}")
+        return None
+
 
 # ---------------- PAGE CONFIG ----------------
 st.set_page_config(
