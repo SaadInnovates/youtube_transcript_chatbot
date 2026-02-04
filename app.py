@@ -3,8 +3,6 @@
 # Author: Muhammad Saad Zubair
 
 import streamlit as st
-from youtube_transcript_api import YouTubeTranscriptApi
-from youtube_transcript_api._errors import TranscriptsDisabled, NoTranscriptFound
 
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 from langchain_huggingface import HuggingFaceEmbeddings, HuggingFaceEndpoint, ChatHuggingFace
@@ -17,20 +15,25 @@ import requests
 
 import streamlit as st
 
+from youtube_transcript_api import YouTubeTranscriptApi
+from youtube_transcript_api._errors import TranscriptsDisabled, NoTranscriptFound
+
 def fetch_transcript_api(video_id, api_key=None):
     """
-    Fetch YouTube transcript compatible with youtube-transcript-api<=1.2.4.
-    api_key is ignored.
+    Works with youtube-transcript-api<=1.2.4 (Python 3.13 in Streamlit Cloud)
     """
     try:
-        transcript_list = YouTubeTranscriptApi.get_transcript(video_id)
-        return " ".join([t["text"] for t in transcript_list])
+        # old method
+        transcript_dict = YouTubeTranscriptApi.get_transcripts([video_id])
+        # transcript_dict is a dict: {video_id: [segments]}
+        transcript_list = transcript_dict[video_id]
+        return " ".join([t['text'] for t in transcript_list])
     except (TranscriptsDisabled, NoTranscriptFound):
         return None
     except Exception as e:
         st.error(f"Error fetching transcript: {str(e)}")
         return None
-        
+
 # ---------------- PAGE CONFIG ----------------
 st.set_page_config(
     page_title="🎥 YouTube AI Chatbot",
