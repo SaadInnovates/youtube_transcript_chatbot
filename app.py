@@ -13,12 +13,17 @@ from langchain_core.output_parsers import StrOutputParser
 import re
 import requests
 
+import requests
+import streamlit as st
+
 def fetch_transcript_api(video_id, api_key):
     url = "https://api.supadata.ai/youtube/transcript"
+
     headers = {
         "x-api-key": api_key,
         "Content-Type": "application/json"
     }
+
     payload = {
         "video_id": video_id,
         "lang": "en"
@@ -26,12 +31,20 @@ def fetch_transcript_api(video_id, api_key):
 
     response = requests.post(url, headers=headers, json=payload)
 
+    # DEBUG OUTPUT
     if response.status_code != 200:
+        st.error(f"Transcript API Error {response.status_code}")
+        st.code(response.text)
         raise Exception("Transcript API failed")
 
     data = response.json()
-    return " ".join([item["text"] for item in data["transcript"]])
 
+    if "transcript" not in data:
+        st.error("Transcript key missing in API response")
+        st.code(data)
+        raise Exception("Bad API response")
+
+    return " ".join([item["text"] for item in data["transcript"]])
 
 # ---------------- PAGE CONFIG ----------------
 st.set_page_config(
